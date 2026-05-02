@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <style>
+        body {
+            background: transparent;
+            color: black;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            margin: 0;
+            padding: 20px;
+            overflow: hidden;
+        }
+        #counter {
+            font-size: 26px;
+            font-weight: 600;
+            margin-bottom: 15px;
+        }
+        .controls {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+            justify-content: center;
+            align-items: center;
+        }
+        
+        /* New Style for the Date Input to look like a button */
+        input[type="datetime-local"] {
+            background: #f4f4f4;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            padding: 5px 10px;
+            font-size: 13px;
+            font-family: inherit;
+            cursor: pointer;
+            color: #333;
+            outline: none;
+        }
+
+        button {
+            background: #f4f4f4;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            padding: 6px 12px;
+            font-size: 13px;
+            cursor: pointer;
+            color: #333;
+            transition: all 0.2s;
+        }
+        button:hover, input[type="datetime-local"]:hover { 
+            background: #ebebeb; 
+            border-color: #ccc; 
+        }
+        
+        #logContainer {
+            width: 100%;
+            max-width: 300px;
+            font-size: 11px;
+            border-top: 1px solid #eee;
+            padding-top: 10px;
+            display: none;
+            max-height: 200px;
+            overflow-y: auto;
+        }
+        .log-entry {
+            background: #fafafa;
+            padding: 8px;
+            margin-bottom: 5px;
+            border-radius: 4px;
+            border-left: 3px solid black;
+        }
+    </style>
+</head>
+<body>
+
+    <div id="counter">0 Days, 0 Hours</div>
+    
+    <div class="controls">
+        <!-- Replaced button with direct date input for better Notion compatibility -->
+        <input type="datetime-local" id="datePicker" onchange="setCustomDate(this.value)" title="Set start date">
+        
+        <button onclick="resetCounter()">Reset</button>
+        <button id="undoBtn" onclick="undoReset()" style="display: none;">Undo</button>
+        <button onclick="toggleLog()">📜 Log</button>
+    </div>
+
+    <div id="logContainer">
+        <strong style="display:block; margin-bottom:5px;">History</strong>
+        <div id="logList"></div>
+        <button onclick="clearLogs()" style="margin-top:10px; width:100%; font-size:10px;">Clear History</button>
+    </div>
+
+    <script>
+        let startTime = localStorage.getItem('countup_start');
+        let previousTime = null;
+        let logs = JSON.parse(localStorage.getItem('countup_logs')) || [];
+
+        if (!startTime) {
+            startTime = Date.now();
+            localStorage.setItem('countup_start', startTime);
+        }
+
+        function updateDisplay() {
+            const diff = Date.now() - startTime;
+            const days = Math.floor(diff / (1000 * 60 * 60 * 24));
+            const hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+            document.getElementById('counter').innerText = `${days} ${days === 1 ? 'Day' : 'Days'}, ${hours} ${hours === 1 ? 'Hour' : 'Hours'}`;
+        }
+
+        function setCustomDate(val) {
+            if (!val) return;
+            previousTime = startTime;
+            startTime = new Date(val).getTime();
+            localStorage.setItem('countup_start', startTime);
+            document.getElementById('undoBtn').style.display = 'inline-block';
+            updateDisplay();
+        }
+
+        function resetCounter() {
+            const endTime = Date.now();
+            const diff = endTime - startTime;
+            const days = Math.floor(diff / (1000 * 60 * 60 * 24));
+            const hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+
+            const entry = {
+                start: new Date(parseInt(startTime)).toLocaleString(),
+                end: new Date(endTime).toLocaleString(),
+                duration: `${days}d, ${hours}h`
+            };
+            logs.unshift(entry);
+            localStorage.setItem('countup_logs', JSON.stringify(logs));
+            renderLogs();
+
+            previousTime = startTime;
+            startTime = Date.now();
+            localStorage.setItem('countup_start', startTime);
+            document.getElementById('undoBtn').style.display = 'inline-block';
+            updateDisplay();
+        }
+
+        function undoReset() {
+            if (previousTime) {
+                startTime = previousTime;
+                localStorage.setItem('countup_start', startTime);
+                logs.shift();
+                localStorage.setItem('countup_logs', JSON.stringify(logs));
+                previousTime = null;
+                document.getElementById('undoBtn').style.display = 'none';
+                renderLogs();
+                updateDisplay();
+            }
+        }
+
+        function toggleLog() {
+            const container = document.getElementById('logContainer');
+            container.style.display = container.style.display === 'block' ? 'none' : 'block';
+            renderLogs();
+        }
+
+        function renderLogs() {
+            const list = document.getElementById('logList');
+            list.innerHTML = logs.map(l => `
+                <div class="log-entry">
+                    <b>Duration:</b> ${l.duration}<br>
+                    <b>From:</b> ${l.start}<br>
+                    <b>To:</b> ${l.end}
+                </div>
+            `).join('');
+        }
+
+        function clearLogs() {
+            if(confirm("Clear all logs?")) {
+                logs = [];
+                localStorage.removeItem('countup_logs');
+                renderLogs();
+            }
+        }
+
+        setInterval(updateDisplay, 60000);
+        updateDisplay();
+        renderLogs();
+    </script>
+</body>
+</html>
